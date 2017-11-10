@@ -16,8 +16,13 @@ html,body,h1,h2,h3,h4,h5,h6 {font-family: "Roboto", sans-serif;}
   bottom: 0;
   height: inherit;
 }
+canvas {
+	border: 1px solid #0d0d0d;
+	background-color: #fdfdfd;
+	margin-left: 20px;
+}
 </style>
-<body>
+<body onload="startMapping()">
 
 <!-- Navbar -->
 <div class="w3-top">
@@ -47,13 +52,14 @@ html,body,h1,h2,h3,h4,h5,h6 {font-family: "Roboto", sans-serif;}
 
   <div class="w3-row w3-padding-64">
     <div class="w3-twothird w3-container">
-      <h1 class="w3-text-teal">2D Mapping</h1>
-      <p>This post about 2d mapping</p>
+      <h1 class="w3-text-teal" id="TriangleMapping">Triangle Mapping</h1>
+	  <a href="http://people.sc.fsu.edu/~jburkardt/presentations/cg_lab_mapping_triangles.pdf">Reference: http://people.sc.fsu.edu/~jburkardt/presentations/cg_lab_mapping_triangles.pdf</a>
     </div>
     <!--<div class="w3-third w3-container">
       <p class="w3-border w3-padding-large w3-padding-32 w3-center">AD</p>
       <p class="w3-border w3-padding-large w3-padding-64 w3-center">AD</p>
     </div>-->
+	
   </div>
 
    <footer id="myFooter">
@@ -92,6 +98,170 @@ function w3_close() {
     mySidebar.style.display = "none";
     overlayBg.style.display = "none";
 }
+
+function startMapping()
+{
+	origTriangle = new triangle(100,100,200,200,300,150,"red");
+	destTriangle = new triangle(200,200,300,300,250,150,"green");
+	origPoint = new point(0,0,"black");
+	destPoint = new point(0,0,"brown");
+	mappingArea.start();
+}
+
+var mappingArea = 
+{
+	canvas : document.createElement("canvas"),
+	start : function()
+	{
+		this.canvas.width = 600;
+		this.canvas.height = 400;
+		this.canvas.addEventListener("mousedown",doMouseDown,false);
+		this.context = this.canvas.getContext("2d");
+		var myFooter = document.getElementById("myFooter")
+		myFooter.insertBefore(this.canvas,myFooter.childNodes[0]);
+		//this.interval =  setInterval(updateMappingArea, 20);
+		updateMappingArea();
+	},
+	clear : function()
+	{
+		this.context.clearRect(0,0,this.canvas.width,this.canvas.height);
+	}
+}
+
+function doMouseDown(event)
+{
+	var rect = mappingArea.canvas.getBoundingClientRect();
+	origPoint.update(event.pageX - rect.left,event.pageY - rect.top, origTriangle);
+}
+
+function point(x,y,color)
+{
+	this.x = x;
+	this.y = y;
+	this.visible = false;
+	
+	this.update = function(x, y, t)
+	{
+		//https://stackoverflow.com/questions/2049582/how-to-determine-if-a-point-is-in-a-2d-triangle
+		//determine if the point is inside original triangle, then make it visible
+		//original method computed the angle between point and vertices of the triangle, but this one is fast and works well too
+		b1 = this.sign(x,y,t.x1,t.y1,t.x2,t.y2) < 0.0;
+		b2 = this.sign(x,y,t.x2,t.y2,t.x3,t.y3) < 0.0;
+		b3 = this.sign(x,y,t.x3,t.y3,t.x1,t.y1) < 0.0;
+		
+		this.visible = b1 == b2 && b2 == b3;
+	
+		this.x = x;
+		this.y = y;
+		
+		updateMappingArea();
+	}
+	
+	this.sign = function(x1,y1,x2,y2,x3,y3)
+	{
+		return (x1 - x3) * (y2 - y3) - (x2 - x3) * (y1 - y3);
+	}
+	
+	this.draw = function()
+	{
+		if (this.visible)
+		{
+			ctx = mappingArea.context;
+			ctx.fillStyle = color;
+			ctx.globalAlpha=1.0;
+			ctx.beginPath();
+			ctx.arc(this.x,this.y,5,0,2*Math.PI);
+			ctx.fill();
+		}
+	}
+}
+
+function triangle(x1,y1,x2,y2,x3,y3,color)
+{
+	this.x1 = x1;
+	this.y1 = y1;
+	this.x2 = x2;
+	this.y2 = y2;
+	this.x3 = x3;
+	this.y3 = y3;
+	
+	this.draw = function()
+	{
+		ctx = mappingArea.context;
+		ctx.fillStyle = color;
+		ctx.globalAlpha=0.7;
+		ctx.beginPath();
+		ctx.moveTo(this.x1,this.y1);
+		ctx.lineTo(this.x2,this.y2);
+		ctx.lineTo(this.x3,this.y3);
+		ctx.fill()
+		
+		ctx.fillStyle = "orange"
+		ctx.globalAlpha=1.0;
+		ctx.beginPath();
+		ctx.arc(this.x1,this.y1,5,0,2*Math.PI);
+		ctx.fill();
+		
+		ctx.fillStyle = "darkblue"
+		ctx.globalAlpha=1.0;
+		ctx.beginPath();
+		ctx.arc(this.x2,this.y2,5,0,2*Math.PI);
+		ctx.fill();
+		
+		ctx.fillStyle = "purple"
+		ctx.globalAlpha=1.0;
+		ctx.beginPath();
+		ctx.arc(this.x3,this.y3,5,0,2*Math.PI);
+		ctx.fill();
+	}
+}
+
+function updateMappingArea()
+{
+	mappingArea.clear();
+	origTriangle.draw();
+	destTriangle.draw();
+	origPoint.draw();
+	
+	if (origPoint.visible == true)
+	{
+		translatePoint(origTriangle,destTriangle,origPoint,destPoint);
+		destPoint.visible = true;
+		destPoint.draw();
+	}
+	else
+	{
+		destPoint.visible = false;
+	}
+}
+
+function translatePoint(t1,t2,p1,p2)
+{
+	//http://people.sc.fsu.edu/~jburkardt/presentations/cg_lab_mapping_triangles.pdf
+	var a = t1.x1 - t1.x3;
+	var b = t1.x2 - t1.x3;
+	var c = t1.y1 - t1.y3;
+	var d = t1.y2 - t1.y3;
+	
+	var determinant = 1.0 / (a * d - b * c);
+	
+	var a1 = determinant * d;
+	var b1 = determinant * -b;
+	var c1 = determinant * -c;
+	var d1 = determinant * a;
+	
+	var ptx = (p1.x - t1.x3)* a1 + (p1.y - t1.y3) * b1;
+	var pty = (p1.x - t1.x3)* c1 + (p1.y - t1.y3) * d1;
+	
+	var a2 = t2.x1 - t2.x3;
+	var b2 = t2.x2 - t2.x3;
+	var c2 = t2.y1 - t2.y3;
+	var d2 = t2.y2 - t2.y3;
+
+	p2.x = ptx * a2 + pty * b2 + t2.x3;
+	p2.y = ptx * c2 + pty * d2 + t2.y3;
+}
+
 </script>
 
 </body>
